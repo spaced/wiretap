@@ -1,4 +1,4 @@
-module github.com/pb33f/wiretap
+module github.com/spaced/wiretap
 
 go 1.21
 
