@@ -293,141 +293,144 @@ var (
 				config.CertificateKey = certKey
 			}
 
-			// variables
-			if len(config.Variables) > 0 {
-				config.CompileVariables()
-				printLoadedVariables(config.Variables)
-			}
-
-			// paths
-			if len(config.PathConfigurations) > 0 {
-				config.CompilePaths()
-				printLoadedPathConfigurations(config.PathConfigurations)
-			}
-
-			// path delays
-			if len(config.PathDelays) > 0 {
-				config.CompilePathDelays()
-				printLoadedPathDelayConfigurations(config.PathDelays)
-			}
-
-			// static headers
-			if config.Headers != nil && len(config.Headers.DropHeaders) > 0 {
-				pterm.Info.Printf("Dropping the following %d %s globally:\n", len(config.Headers.DropHeaders),
-					shared.Pluralize(len(config.Headers.DropHeaders), "header", "headers"))
-				for _, header := range config.Headers.DropHeaders {
-					pterm.Printf("🗑️  %s\n", pterm.LightRed(header))
-				}
-				pterm.Println()
-			}
-
-			// static paths
-			if len(config.StaticPaths) > 0 && config.StaticDir != "" {
-				staticPath := filepath.Join(config.StaticDir, config.StaticIndex)
-				pterm.Info.Printf("Mapping %d static %s to '%s':\n", len(config.StaticPaths),
-					shared.Pluralize(len(config.StaticPaths), "path", "paths"), staticPath)
-				for _, path := range config.StaticPaths {
-					pterm.Printf("⛱️  %s\n", pterm.LightMagenta(path))
-				}
-				pterm.Println()
-			}
-
-			// hard errors
-			if config.HardErrors {
-				pterm.Printf("❌  Hard validation mode enabled. HTTP error %s for requests and error %s for responses that "+
-					"fail to pass validation.\n",
-					pterm.LightRed(config.HardErrorCode), pterm.LightRed(config.HardErrorReturnCode))
-				pterm.Println()
-			}
-
-			// mock mode
-			if config.MockMode {
-				pterm.Printf("Ⓜ️ %s. All responses will be mocked and no traffic will be sent to the target API.\n",
-					pterm.LightCyan("Mock mode enabled"))
-				pterm.Println()
-			}
-
-			// using TLS?
-			if config.CertificateKey != "" && config.Certificate != "" {
-				pterm.Printf("🔐 Running over %s using certificate: %s and key: %s\n",
-					pterm.LightYellow("TLS/HTTPS & HTTP/2"), pterm.LightMagenta(config.Certificate), pterm.LightCyan(config.CertificateKey))
-				pterm.Println()
-			}
-
-			// check if we're using a HAR file instead of sniffing traffic.
-			if config.HAR != "" {
-				pterm.Printf("📦 Loading HAR file: %s\n", pterm.LightMagenta(config.HAR))
-				// can we read the har file?
-				_, err := os.Stat(config.HAR)
-				if err != nil {
-					pterm.Error.Printf("Cannot read HAR file: %s (%s)\n", config.HAR, err.Error())
-					return nil
-				}
-				pterm.Println()
-
-			}
-
-			// check if we want to validate the HAR file against the OpenAPI spec.
-			// but only if we're not in mock mode and there is a spec provided
-			if config.HARValidate && !config.MockMode && config.Contract != "" {
-				pterm.Printf("🔍 Validating HAR file against OpenAPI specification: %s\n", pterm.LightMagenta(config.Contract))
-				pterm.Println()
-			} else {
-				// we can't use this mode, print an error and return
-				if config.HARValidate && config.MockMode {
-					pterm.Println()
-					pterm.Error.Println("Cannot validate HAR file against OpenAPI specification in mock mode!")
-					pterm.Println()
-					return nil
-				}
-
-				// if there is no spec, print an error
-				if config.HARValidate && config.Contract == "" {
-					pterm.Println()
-					pterm.Error.Println("Cannot validate HAR file against OpenAPI specification, no specification provided, use '-s'")
-					pterm.Println()
-					return nil
-				}
-
-			}
-
-			// lets create a logger first.
-			logLevel := pterm.LogLevelWarn
-			if debug {
-				logLevel = pterm.LogLevelDebug
-			}
-
-			ptermLog := &pterm.Logger{
-				Formatter:  pterm.LogFormatterColorful,
-				Writer:     os.Stdout,
-				Level:      logLevel,
-				ShowTime:   true,
-				TimeFormat: "2006-01-02 15:04:05",
-				MaxWidth:   180,
-				KeyStyles: map[string]pterm.Style{
-					"error":  *pterm.NewStyle(pterm.FgRed, pterm.Bold),
-					"err":    *pterm.NewStyle(pterm.FgRed, pterm.Bold),
-					"caller": *pterm.NewStyle(pterm.FgGray, pterm.Bold),
-				},
-			}
-
-			handler := pterm.NewSlogHandler(ptermLog)
-			config.Logger = slog.New(handler)
-
-			// ready to boot, let's go!
-			_, pErr := runWiretapService(&config)
-
-			if pErr != nil {
-				pterm.Println()
-				pterm.Error.Printf("Cannot start wiretap: %s\n", pErr.Error())
-				pterm.Println()
-				return nil
-			}
-
-			return nil
+			return RunIt(config, debug)
 		},
 	}
 )
+
+func RunIt(config shared.WiretapConfiguration, debug bool) error {
+	// variables
+	if len(config.Variables) > 0 {
+		config.CompileVariables()
+		printLoadedVariables(config.Variables)
+	}
+
+	// paths
+	if len(config.PathConfigurations) > 0 {
+		config.CompilePaths()
+		printLoadedPathConfigurations(config.PathConfigurations)
+	}
+
+	// path delays
+	if len(config.PathDelays) > 0 {
+		config.CompilePathDelays()
+		printLoadedPathDelayConfigurations(config.PathDelays)
+	}
+
+	// static headers
+	if config.Headers != nil && len(config.Headers.DropHeaders) > 0 {
+		pterm.Info.Printf("Dropping the following %d %s globally:\n", len(config.Headers.DropHeaders),
+			shared.Pluralize(len(config.Headers.DropHeaders), "header", "headers"))
+		for _, header := range config.Headers.DropHeaders {
+			pterm.Printf("🗑️  %s\n", pterm.LightRed(header))
+		}
+		pterm.Println()
+	}
+
+	// static paths
+	if len(config.StaticPaths) > 0 && config.StaticDir != "" {
+		staticPath := filepath.Join(config.StaticDir, config.StaticIndex)
+		pterm.Info.Printf("Mapping %d static %s to '%s':\n", len(config.StaticPaths),
+			shared.Pluralize(len(config.StaticPaths), "path", "paths"), staticPath)
+		for _, path := range config.StaticPaths {
+			pterm.Printf("⛱️  %s\n", pterm.LightMagenta(path))
+		}
+		pterm.Println()
+	}
+
+	// hard errors
+	if config.HardErrors {
+		pterm.Printf("❌  Hard validation mode enabled. HTTP error %s for requests and error %s for responses that "+
+			"fail to pass validation.\n",
+			pterm.LightRed(config.HardErrorCode), pterm.LightRed(config.HardErrorReturnCode))
+		pterm.Println()
+	}
+
+	// mock mode
+	if config.MockMode {
+		pterm.Printf("Ⓜ️ %s. All responses will be mocked and no traffic will be sent to the target API.\n",
+			pterm.LightCyan("Mock mode enabled"))
+		pterm.Println()
+	}
+
+	// using TLS?
+	if config.CertificateKey != "" && config.Certificate != "" {
+		pterm.Printf("🔐 Running over %s using certificate: %s and key: %s\n",
+			pterm.LightYellow("TLS/HTTPS & HTTP/2"), pterm.LightMagenta(config.Certificate), pterm.LightCyan(config.CertificateKey))
+		pterm.Println()
+	}
+
+	// check if we're using a HAR file instead of sniffing traffic.
+	if config.HAR != "" {
+		pterm.Printf("📦 Loading HAR file: %s\n", pterm.LightMagenta(config.HAR))
+		// can we read the har file?
+		_, err := os.Stat(config.HAR)
+		if err != nil {
+			pterm.Error.Printf("Cannot read HAR file: %s (%s)\n", config.HAR, err.Error())
+			return nil
+		}
+		pterm.Println()
+
+	}
+
+	// check if we want to validate the HAR file against the OpenAPI spec.
+	// but only if we're not in mock mode and there is a spec provided
+	if config.HARValidate && !config.MockMode && config.Contract != "" {
+		pterm.Printf("🔍 Validating HAR file against OpenAPI specification: %s\n", pterm.LightMagenta(config.Contract))
+		pterm.Println()
+	} else {
+		// we can't use this mode, print an error and return
+		if config.HARValidate && config.MockMode {
+			pterm.Println()
+			pterm.Error.Println("Cannot validate HAR file against OpenAPI specification in mock mode!")
+			pterm.Println()
+			return nil
+		}
+
+		// if there is no spec, print an error
+		if config.HARValidate && config.Contract == "" {
+			pterm.Println()
+			pterm.Error.Println("Cannot validate HAR file against OpenAPI specification, no specification provided, use '-s'")
+			pterm.Println()
+			return nil
+		}
+
+	}
+	// lets create a logger first.
+	logLevel := pterm.LogLevelWarn
+	if debug {
+		logLevel = pterm.LogLevelDebug
+	}
+
+	ptermLog := &pterm.Logger{
+		Formatter:  pterm.LogFormatterColorful,
+		Writer:     os.Stdout,
+		Level:      logLevel,
+		ShowTime:   true,
+		TimeFormat: "2006-01-02 15:04:05",
+		MaxWidth:   180,
+		KeyStyles: map[string]pterm.Style{
+			"error":  *pterm.NewStyle(pterm.FgRed, pterm.Bold),
+			"err":    *pterm.NewStyle(pterm.FgRed, pterm.Bold),
+			"caller": *pterm.NewStyle(pterm.FgGray, pterm.Bold),
+		},
+	}
+
+	handler := pterm.NewSlogHandler(ptermLog)
+	config.Logger = slog.New(handler)
+
+	// ready to boot, let's go!
+	_, pErr := runWiretapService(&config)
+
+	if pErr != nil {
+		pterm.Println()
+		pterm.Error.Printf("Cannot start wiretap: %s\n", pErr.Error())
+		pterm.Println()
+		return nil
+	}
+
+	return nil
+}
 
 func Execute(version, commit, date string, fs embed.FS) {
 	Version = version

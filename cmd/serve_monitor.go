@@ -37,14 +37,17 @@ func serveMonitor(wiretapConfig *shared.WiretapConfiguration) {
 			log.Fatal(iErr)
 			return
 		}
+
+		indexString := "<html><body>Not available</body><html>"
+
 		indexReader := bufio.NewReader(index)
 		bytes, bErr := io.ReadAll(indexReader)
 		if bErr != nil {
 			log.Fatal(bErr)
 			return
+		} else {
+			indexString = string(bytes)
 		}
-
-		indexString := string(bytes)
 
 		useTLS := "false"
 		if wiretapConfig.CertificateKey != "" && wiretapConfig.Certificate != "" {
